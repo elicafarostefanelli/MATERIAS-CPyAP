@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guía de Cursado</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Font: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        input[type="checkbox"]:disabled+label {
+            color: #9ca3af;
+            cursor: not-allowed;
+        }
+        .subject-item:has(input[type="checkbox"]:disabled) {
+            background-color: #f3f4f6;
+            opacity: 0.7;
+        }
+    </style>
+</head>
+
+<body class="bg-green-700"> <!-- Fondo verde oscuro -->
+    <div id="app" class="max-w-lg mx-auto bg-neutral-50 shadow-lg rounded-lg my-10 p-6 transition-all duration-300">
+        <!-- ... (el HTML de tu interfaz, igual al código que ya me diste) ... -->
+
+        <!-- Título con imagen -->
+        <div class="flex items-center justify-center mb-6">
+            <img src="https://placehold.co/40x40/166534/ffffff?text=G" alt="logo" class="h-10 w-10 mr-3 rounded-md">
+            <h1 class="text-3xl font-bold text-green-700">Guía de Cursado</h1>
+        </div>
+        <div id="loading-state" class="text-center text-gray-500 mb-4">
+            <p>Cargando datos...</p>
+        </div>
+        <div id="auth-container" class="mb-4 text-center">
+            <div id="logged-out-state">
+                <p class="text-gray-600 mb-4">Inicia sesión para guardar tu progreso.</p>
+                <button id="google-login-btn" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-blue-700 transition-colors duration-200">
+                    <!-- (SVG de Google) -->
+                    <svg class="w-5 h-5 inline-block mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48px" height="48px"><path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12s5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24s8.955,20,20,20s20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"/><path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"/><path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.223,0-9.65-3.657-11.303-8H2.697v6.46C6.045,39.512,14.31,44,24,44z"/><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.23,4.14-4.082,5.571l6.19,5.238C39.957,34.812,44,29.982,44,24C44,22.659,43.862,21.35,43.611,20.083z"/></svg>
+                    Iniciar sesión con Google
+                </button>
+            </div>
+            <div id="logged-in-state" class="hidden">
+                <p class="text-gray-700 mb-2">Conectado como: <strong id="user-name"></strong> (<span id="user-email"></span>)</p>
+                <button id="logout-btn" class="text-sm text-red-500 hover:underline">
+                    Cerrar Sesión
+                </button>
+            </div>
+        </div>
+        <div id="auth-state" class="text-center text-xs text-gray-400 mb-4 break-words">
+            Conectando...
+        </div>
+        <div id="progress-container" class="mb-8 hidden">
+            <h2 class="text-xl font-semibold text-gray-800 mb-3">Tu Avance</h2>
+            <div class="flex justify-between items-center mb-2">
+                <span class="text-lg font-medium text-green-700" id="progress-text">0%</span>
+                <span class="text-sm text-gray-500" id="progress-count">0 / 0</span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-4">
+                <div id="progress-bar" class="bg-green-600 h-4 rounded-full transition-all duration-500" style="width: 0%"></div>
+            </div>
+        </div>
+        <div id="curriculum-container" class="space-y-6"></div>
+    </div>
+
+    <!-- Tu script principal: aquí va la lógica de la aplicación -->
+    <script type="module">
+        // Importar funciones de Firebase
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
+        import {
+            getAuth,
+            GoogleAuthProvider,
+            signInWithPopup,
+            signOut,
+            onAuthStateChanged,
+            signInWithCustomToken,
+        } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js";
+        import {
+            getFirestore,
+            doc,
+            setDoc,
+            onSnapshot,
+            setLogLevel
+        } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
+
+        // Tu configuración Firebase
+        const firebaseConfig = {
+            apiKey: "AIzaSyA_s1E8vA-40q9vkXcKPk3XEYc2bdm0lKk",
+            authDomain: "materias-cpyap-gf.firebaseapp.com",
+            projectId: "materias-cpyap-gf",
+            storageBucket: "materias-cpyap-gf.appspot.com",
+            messagingSenderId: "53735296151",
+            appId: "1:53735296151:web:d3e53fd48e21cfb7b1add2",
+            measurementId: "G-ZZ58BD1GF5"
+        };
+
+        // Inicializar Firebase
+        let app, db, auth;
+        try {
+            app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            setLogLevel('debug');
+        } catch (e) {
+            console.error("Error inicializando Firebase:", e);
+            document.getElementById('loading-state').textContent = "Error al conectar con la base de datos.";
+        }
+
+        // El resto del script es exactamente igual que tu código principal:
+        // Aquí va toda tu lógica JS de CURRICULUM, autenticación, render, etc.
+        // (Copia y pega aquí el script largo que pasaste antes en tu pregunta).
+        // Si necesitas que lo coloque completo aquí, ¡avísame!
+        // ...
+
+        // NOTA: No olvides reemplazar (o quitar) todo uso de typeof __firebase_config, initialAuthToken, etc.
+        // Solo se requiere "firebaseConfig" como arriba y puedes dejar initialAuthToken como null.
+    </script>
+</body>
+</html>
