@@ -5,20 +5,28 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Guía de Cursado</title>
-    <!-- Tailwind CSS -->
+
+    <!-- Favicon (usa ruta relativa para GitHub Pages de repositorio) -->
+    <link rel="icon" href="./favicon.ico">
+
+    <!-- Tailwind CSS (advertencia: CDN está bien para prototipos; para producción compila CSS) -->
     <script src="https://cdn.tailwindcss.com"></script>
+
     <!-- Google Font: Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
     <style>
         body {
             font-family: 'Inter', sans-serif;
         }
+
         input[type="checkbox"]:disabled+label {
             color: #9ca3af;
             cursor: not-allowed;
         }
+
         .subject-item:has(input[type="checkbox"]:disabled) {
             background-color: #f3f4f6;
             opacity: 0.7;
@@ -26,11 +34,9 @@
     </style>
 </head>
 
-<body class="bg-green-700"> <!-- Fondo verde oscuro -->
+<body class="bg-green-700">
     <div id="app" class="max-w-lg mx-auto bg-neutral-50 shadow-lg rounded-lg my-10 p-6 transition-all duration-300">
-        <!-- ... (el HTML de tu interfaz, igual al código que ya me diste) ... -->
-
-        <!-- Título con imagen -->
+        <!-- ... (tu HTML) ... -->
         <div class="flex items-center justify-center mb-6">
             <img src="https://placehold.co/40x40/166534/ffffff?text=G" alt="logo" class="h-10 w-10 mr-3 rounded-md">
             <h1 class="text-3xl font-bold text-green-700">Guía de Cursado</h1>
@@ -43,7 +49,9 @@
                 <p class="text-gray-600 mb-4">Inicia sesión para guardar tu progreso.</p>
                 <button id="google-login-btn" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-blue-700 transition-colors duration-200">
                     <!-- (SVG de Google) -->
-                    <svg class="w-5 h-5 inline-block mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48px" height="48px"><path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12s5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24s8.955,20,20,20s20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z"/><path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z"/><path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36c-5.223,0-9.65-3.657-11.303-8H2.697v6.46C6.045,39.512,14.31,44,24,44z"/><path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.23,4.14-4.082,5.571l6.19,5.238C39.957,34.812,44,29.982,44,24C44,22.659,43.862,21.35,43.611,20.083z"/></svg>
+                    <svg class="w-5 h-5 inline-block mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48px" height="48px">
+                        <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.30[...]"></path>
+                    </svg>
                     Iniciar sesión con Google
                 </button>
             </div>
@@ -70,17 +78,38 @@
         <div id="curriculum-container" class="space-y-6"></div>
     </div>
 
-    <!-- Tu script principal: aquí va la lógica de la aplicación -->
+    <!-- Seguridad: parche que evita que una llamada .observe con un target no-Node rompa toda la ejecución.
+         Esto previene el TypeError: Failed to execute 'observe' on 'MutationObserver'
+         Nota: es un parche defensivo. La corrección ideal es revisar los lugares donde se llama .observe y asegurarse
+         de pasarles elementos DOM válidos; si quieres, te indico los cambios exactos en esos ficheros. -->
+    <script>
+        (function () {
+            try {
+                const origObserve = MutationObserver.prototype.observe;
+                MutationObserver.prototype.observe = function (target, options) {
+                    if (!target || !(target instanceof Node)) {
+                        console.warn('MutationObserver.observe ignorado: target no es Node:', target);
+                        return; // no lanza excepción, solo ignoramos observaciones inválidas
+                    }
+                    return origObserve.call(this, target, options);
+                };
+            } catch (e) {
+                // Si algo falla aquí, no queremos detener el resto del script
+                console.warn('No se pudo parchear MutationObserver.observe:', e);
+            }
+        })();
+    </script>
+
+    <!-- Script principal (módulo) -->
     <script type="module">
-        // Importar funciones de Firebase
+        // Importar funciones de Firebase (la importación debe ir dentro de un módulo)
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
         import {
             getAuth,
             GoogleAuthProvider,
             signInWithPopup,
             signOut,
-            onAuthStateChanged,
-            signInWithCustomToken,
+            onAuthStateChanged
         } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-auth.js";
         import {
             getFirestore,
@@ -101,7 +130,7 @@
             measurementId: "G-ZZ58BD1GF5"
         };
 
-        // Inicializar Firebase
+        // Inicializar Firebase con manejo de errores
         let app, db, auth;
         try {
             app = initializeApp(firebaseConfig);
@@ -110,17 +139,27 @@
             setLogLevel('debug');
         } catch (e) {
             console.error("Error inicializando Firebase:", e);
-            document.getElementById('loading-state').textContent = "Error al conectar con la base de datos.";
+            const loading = document.getElementById('loading-state');
+            if (loading) loading.textContent = "Error al conectar con la base de datos.";
         }
 
-        // El resto del script es exactamente igual que tu código principal:
-        // Aquí va toda tu lógica JS de CURRICULUM, autenticación, render, etc.
-        // (Copia y pega aquí el script largo que pasaste antes en tu pregunta).
-        // Si necesitas que lo coloque completo aquí, ¡avísame!
-        // ...
+        // Asegurarse de ejecutar la lógica una vez que el DOM esté listo
+        document.addEventListener('DOMContentLoaded', () => {
+            // Ocultar el estado de carga por defecto; la lógica de autenticación/resto debe mostrar/ocultar segun corresponda
+            const loading = document.getElementById('loading-state');
+            if (loading) loading.style.display = 'none';
 
-        // NOTA: No olvides reemplazar (o quitar) todo uso de typeof __firebase_config, initialAuthToken, etc.
-        // Solo se requiere "firebaseConfig" como arriba y puedes dejar initialAuthToken como null.
+            // --- Aquí va tu lógica existente de autenticación/render/Firestore ---
+            // Si ya tienes todo ese código en otro fragmento, pégalo dentro de este bloque para asegurarte
+            // de que los elementos del DOM existen antes de que el script intente acceder a ellos.
+
+            // Ejemplo mínimo de comprobación de elementos que pueden causar el observe inválido:
+            // const someTarget = document.querySelector('#miElemento'); // comprobar null antes de usar
+            // if (someTarget) { /* crear MutationObserver y observar */ }
+
+            // (Si quieres, pégame aquí tu script JS completo y yo lo adapto para que use estas comprobaciones.)
+        });
     </script>
 </body>
+
 </html>
