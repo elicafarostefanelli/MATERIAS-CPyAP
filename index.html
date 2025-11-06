@@ -15,7 +15,7 @@
 
     <!-- Tailwind CSS (CDN para prototipos; en producción compilar) -->
     <!-- Tailwind compilado -->
-<link rel="stylesheet" href="./assets/styles.css">
+    <link rel="stylesheet" href="./assets/styles.css">
 
     <!-- Google Font: Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -32,6 +32,7 @@
             cursor: not-allowed;
         }
 
+        /* :has() tiene soporte parcial en navegadores; está aquí como mejora progresiva */
         .subject-item:has(input[type="checkbox"]:disabled) {
             background-color: #f3f4f6;
             opacity: 0.7;
@@ -42,7 +43,8 @@
 <body class="bg-green-700">
     <div id="app" class="max-w-lg mx-auto bg-neutral-50 shadow-lg rounded-lg my-10 p-6 transition-all duration-300">
         <div class="flex items-center justify-center mb-6">
-            <img src="https://placehold.co/40x40/166534/ffffff?text=G" alt="logo" class="h-10 w-10 mr-3 rounded-md">
+            <!-- Icono simple en lugar del SVG truncado -->
+            <div class="h-10 w-10 mr-3 rounded-md bg-green-700 text-white flex items-center justify-center font-bold">G</div>
             <h1 class="text-3xl font-bold text-green-700">Guía de Cursado</h1>
         </div>
         <div id="loading-state" class="text-center text-gray-500 mb-4">
@@ -52,9 +54,8 @@
             <div id="logged-out-state">
                 <p class="text-gray-600 mb-4">Inicia sesión para guardar tu progreso.</p>
                 <button id="google-login-btn" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md hover:bg-blue-700 transition-colors duration-200">
-                    <svg class="w-5 h-5 inline-block mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48px" height="48px">
-                        <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.30[...]"></path>
-                    </svg>
+                    <!-- Icono simplificado -->
+                    <span class="inline-block mr-2">🔐</span>
                     Iniciar sesión con Google
                 </button>
             </div>
@@ -101,6 +102,7 @@
 
     <!-- Script principal (módulo) -->
     <script type="module">
+        // Firebase modular SDK (CDN)
         import { initializeApp } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-app.js";
         import {
             getAuth,
@@ -114,9 +116,10 @@
             doc,
             setDoc,
             onSnapshot,
-            setLogLevel
+            getDoc
         } from "https://www.gstatic.com/firebasejs/12.5.0/firebase-firestore.js";
 
+        // --- CONFIG: revisa en producción ---
         const firebaseConfig = {
             apiKey: "AIzaSyA_s1E8vA-40q9vkXcKPk3XEYc2bdm0lKk",
             authDomain: "materias-cpyap-gf.firebaseapp.com",
@@ -132,19 +135,229 @@
             app = initializeApp(firebaseConfig);
             db = getFirestore(app);
             auth = getAuth(app);
-            setLogLevel('debug');
         } catch (e) {
             console.error("Error inicializando Firebase:", e);
             const loading = document.getElementById('loading-state');
             if (loading) loading.textContent = "Error al conectar con la base de datos.";
         }
 
-        document.addEventListener('DOMContentLoaded', () => {
-            const loading = document.getElementById('loading-state');
-            if (loading) loading.style.display = 'none';
+        // Datos de ejemplo del currículo (reemplaza por tus datos reales)
+        const curriculum = [
+            {
+                title: "Primer Año",
+                subjects: [
+                    { id: "mat1", name: "Matemática I" },
+                    { id: "fis1", name: "Física I" },
+                    { id: "prog1", name: "Programación I" }
+                ]
+            },
+            {
+                title: "Segundo Año",
+                subjects: [
+                    { id: "mat2", name: "Matemática II" },
+                    { id: "elec", name: "Electrónica" },
+                    { id: "prog2", name: "Programación II" }
+                ]
+            }
+        ];
 
-            // Pega aquí tu lógica completa de autenticación y renderizado (si la tienes)
+        // Estado local
+        let currentUser = null;
+        let userDocUnsubscribe = null;
+        let userDataCache = { selections: {} };
+
+        // Elementos DOM
+        const loadingStateEl = document.getElementById('loading-state');
+        const authStateEl = document.getElementById('auth-state');
+        const loggedOutStateEl = document.getElementById('logged-out-state');
+        const loggedInStateEl = document.getElementById('logged-in-state');
+        const googleLoginBtn = document.getElementById('google-login-btn');
+        const logoutBtn = document.getElementById('logout-btn');
+        const userNameEl = document.getElementById('user-name');
+        const userEmailEl = document.getElementById('user-email');
+        const curriculumContainer = document.getElementById('curriculum-container');
+        const progressContainer = document.getElementById('progress-container');
+        const progressText = document.getElementById('progress-text');
+        const progressCount = document.getElementById('progress-count');
+        const progressBar = document.getElementById('progress-bar');
+
+        // Render curriculum UI
+        function renderCurriculum(selections = {}) {
+            curriculumContainer.innerHTML = '';
+            let total = 0;
+            let completed = 0;
+            curriculum.forEach(section => {
+                const sectionEl = document.createElement('div');
+                const header = document.createElement('h3');
+                header.className = 'text-lg font-semibold text-gray-800 mb-2';
+                header.textContent = section.title;
+                sectionEl.appendChild(header);
+
+                const list = document.createElement('div');
+                list.className = 'space-y-2';
+
+                section.subjects.forEach(sub => {
+                    total++;
+                    const item = document.createElement('div');
+                    item.className = 'p-3 rounded-md border subject-item flex items-center justify-between';
+
+                    const left = document.createElement('div');
+                    left.className = 'flex items-center';
+
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.id = `chk-${sub.id}`;
+                    checkbox.checked = !!selections[sub.id];
+
+                    const label = document.createElement('label');
+                    label.htmlFor = checkbox.id;
+                    label.className = 'ml-3 text-gray-800';
+                    label.textContent = sub.name;
+
+                    left.appendChild(checkbox);
+                    left.appendChild(label);
+                    item.appendChild(left);
+
+                    list.appendChild(item);
+
+                    if (checkbox.checked) completed++;
+
+                    // Listener: guardar cambios en cache y en Firestore cuando haya usuario
+                    checkbox.addEventListener('change', async () => {
+                        userDataCache.selections[sub.id] = checkbox.checked;
+                        updateProgressUI(Object.keys(userDataCache.selections).filter(k => userDataCache.selections[k]).length, total);
+                        if (currentUser) {
+                            await saveUserProgress(currentUser.uid, userDataCache);
+                        } else {
+                            // sin usuario, solo cache local
+                        }
+                    });
+                });
+
+                sectionEl.appendChild(list);
+                curriculumContainer.appendChild(sectionEl);
+            });
+
+            updateProgressUI(completed, total);
+        }
+
+        function updateProgressUI(completed, total) {
+            const percent = total === 0 ? 0 : Math.round((completed / total) * 100);
+            progressText.textContent = `${percent}%`;
+            progressCount.textContent = `${completed} / ${total}`;
+            progressBar.style.width = `${percent}%`;
+            progressContainer.classList.toggle('hidden', total === 0);
+        }
+
+        // Guardar progreso en Firestore (colección 'users', doc = uid)
+        async function saveUserProgress(uid, data) {
+            if (!db || !uid) return;
+            try {
+                const userDocRef = doc(db, 'users', uid);
+                await setDoc(userDocRef, {
+                    updatedAt: new Date().toISOString(),
+                    selections: data.selections || {}
+                }, { merge: true });
+                // console.debug('Progreso guardado');
+            } catch (e) {
+                console.error('Error guardando progreso:', e);
+            }
+        }
+
+        // Suscribir a cambios del documento de usuario
+        function subscribeToUserDoc(uid) {
+            if (!db) return;
+            if (userDocUnsubscribe) {
+                userDocUnsubscribe();
+                userDocUnsubscribe = null;
+            }
+            const userDocRef = doc(db, 'users', uid);
+            userDocUnsubscribe = onSnapshot(userDocRef, (snapshot) => {
+                const data = snapshot.exists() ? snapshot.data() : null;
+                if (data && data.selections) {
+                    userDataCache.selections = data.selections;
+                } else {
+                    userDataCache.selections = {};
+                }
+                renderCurriculum(userDataCache.selections);
+            }, (err) => {
+                console.error('Error en onSnapshot user doc:', err);
+            });
+        }
+
+        // Manejo de autenticación
+        function setupAuthHandlers() {
+            if (!auth) {
+                authStateEl.textContent = 'Firebase Auth no está disponible.';
+                return;
+            }
+
+            const provider = new GoogleAuthProvider();
+
+            googleLoginBtn.addEventListener('click', async () => {
+                try {
+                    await signInWithPopup(auth, provider);
+                } catch (e) {
+                    console.error('Error al iniciar sesión:', e);
+                    alert('Error al iniciar sesión con Google. Revisa la consola.');
+                }
+            });
+
+            logoutBtn.addEventListener('click', async () => {
+                try {
+                    await signOut(auth);
+                } catch (e) {
+                    console.error('Error al cerrar sesión:', e);
+                }
+            });
+
+            onAuthStateChanged(auth, async (user) => {
+                currentUser = user;
+                if (user) {
+                    // usuario conectado
+                    userNameEl.textContent = user.displayName || user.email || 'Usuario';
+                    userEmailEl.textContent = user.email || '';
+                    loggedOutStateEl.classList.add('hidden');
+                    loggedInStateEl.classList.remove('hidden');
+                    authStateEl.textContent = 'Conectado — sincronizando progreso...';
+
+                    // Cargar doc inicial (si existe) y suscribirse a cambios
+                    subscribeToUserDoc(user.uid);
+                } else {
+                    // usuario desconectado
+                    userNameEl.textContent = '';
+                    userEmailEl.textContent = '';
+                    loggedOutStateEl.classList.remove('hidden');
+                    loggedInStateEl.classList.add('hidden');
+                    authStateEl.textContent = 'Desconectado — el progreso se guardará cuando inicies sesión.';
+
+                    // limpiar suscripción y usar cache vacío
+                    if (userDocUnsubscribe) {
+                        userDocUnsubscribe();
+                        userDocUnsubscribe = null;
+                    }
+                    userDataCache = { selections: {} };
+                    renderCurriculum(userDataCache.selections);
+                }
+            });
+        }
+
+        // Inicialización al cargar el DOM
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (loadingStateEl) loadingStateEl.style.display = 'none';
+
+            // Render inicial sin usuario
+            renderCurriculum({});
+
+            // Configurar handlers de auth (si Firebase inicializó)
+            try {
+                setupAuthHandlers();
+            } catch (e) {
+                console.error('Error preparando autenticación:', e);
+                authStateEl.textContent = 'Error en la autenticación.';
+            }
         });
+
     </script>
 </body>
 
